@@ -78,7 +78,7 @@ async function getExistingDocumentation(
     let hasMore;
     let token;
 
-    const rows = []
+    const rows = [];
 
     while (hasMore == undefined || hasMore == true) {
         try {
@@ -87,8 +87,8 @@ async function getExistingDocumentation(
                     let params = {
                         page_size: 100,
                         start_cursor: token,
-                    }
-                    
+                    };
+
                     const response = await notion.databases.query({
                         database_id: databaseID,
                         ...params,
@@ -96,29 +96,27 @@ async function getExistingDocumentation(
                             or: relatedPageIDArray.map((criteria) => ({
                                 property: relationName,
                                 relation: {
-                                    contains: criteria
-                                }
-                            }))
+                                    contains: criteria,
+                                },
+                            })),
                         },
                     });
 
-                    rows.push(...response.results)
-                    hasMore = response.has_more
-                    if (response.next_cursor) [
-                        token = response.next_cursor
-                    ]
+                    rows.push(...response.results);
+                    hasMore = response.has_more;
+                    if (response.next_cursor) [(token = response.next_cursor)];
                 } catch (e) {
                     console.error(e);
                     throw error;
                 }
             });
         } catch (e) {
-            console.error(e)
-            throw error
+            console.error(e);
+            throw error;
         }
     }
 
-    return rows
+    return rows;
 }
 
 /**
@@ -131,7 +129,13 @@ async function getExistingDocumentation(
  * @param {Array<Object>} existingPropertyPages - an Array of existing pages from the Properties documentation database.
  * @returns
  */
-async function documentDatabasePages(dbID, dbList, dbRelation, existingDatabasePages, existingPropertyPages) {
+async function documentDatabasePages(
+    dbID,
+    dbList,
+    dbRelation,
+    existingDatabasePages,
+    existingPropertyPages
+) {
     const databasePageIDs = await Promise.all(
         dbList.map(async (db) => {
             const response = await retry(async (bail) => {
@@ -184,25 +188,35 @@ async function documentDatabasePages(dbID, dbList, dbRelation, existingDatabaseP
                             "Database Icon": {
                                 url: db.icon?.external?.url ?? "",
                             },
-                        }
-                    }
+                        },
+                    };
 
-                    const dbDocumentToUpdate = existingDatabasePages.find((database) => database.properties["Database ID"].rich_text[0].text.content.replace(/-/g,"") === db.id.replace(/-/g,""))
+                    const dbDocumentToUpdate = existingDatabasePages.find(
+                        (database) =>
+                            database.properties[
+                                "Database ID"
+                            ].rich_text[0].text.content.replace(/-/g, "") ===
+                            db.id.replace(/-/g, "")
+                    );
 
                     if (dbDocumentToUpdate) {
-                        console.log(`Found existing Database document ${dbDocumentToUpdate.id} for ${db.name} (${db.id}). Updating record.`)
+                        console.log(
+                            `Found existing Database document ${dbDocumentToUpdate.id} for ${db.name} (${db.id}). Updating record.`
+                        );
                         return notion.pages.update({
                             page_id: dbDocumentToUpdate.id,
-                            ...params
-                        })
+                            ...params,
+                        });
                     } else {
-                        console.log(`No existing Database document found for ${db.name} (${db.id}). Creating new record.`)
+                        console.log(
+                            `No existing Database document found for ${db.name} (${db.id}). Creating new record.`
+                        );
                         return notion.pages.create({
                             parent: {
                                 type: "database_id",
                                 database_id: dbID,
                             },
-                            ...params
+                            ...params,
                         });
                     }
                 } catch (e) {
@@ -233,6 +247,7 @@ async function documentDatabasePages(dbID, dbList, dbRelation, existingDatabaseP
 
                             const typeAccessor = db.properties[prop].type;
 
+                            const selectPropTableHolder = [];
                             if (
                                 selectTypes.includes(db.properties[prop].type)
                             ) {
@@ -257,7 +272,49 @@ async function documentDatabasePages(dbID, dbList, dbRelation, existingDatabaseP
                                         },
                                     };
 
-                                    childArray.push(optionHeader);
+                                    selectPropTableHolder.push(optionHeader);
+
+                                    // Create a callout with information about when this table was generated
+                                    const today = new Date();
+                                    const year = today.getFullYear();
+                                    const month = String(
+                                        today.getMonth() + 1
+                                    ).padStart(2, "0");
+                                    const day = String(
+                                        today.getDate()
+                                    ).padStart(2, "0");
+                                    const date = `${year}-${month}-${day}`;
+
+                                    const generationCallout = {
+                                        callout: {
+                                            rich_text: [
+                                                {
+                                                    text: {
+                                                        content:
+                                                            "This table of propety options was generated on ",
+                                                    },
+                                                },
+                                                {
+                                                    mention: {
+                                                        type: "date",
+                                                        date: {
+                                                            start: date,
+                                                        },
+                                                    },
+                                                },
+                                                {
+                                                    text: {
+                                                        content: ". ",
+                                                    },
+                                                },
+                                            ],
+                                            color: "blue_background",
+                                        },
+                                    };
+
+                                    selectPropTableHolder.push(
+                                        generationCallout
+                                    );
 
                                     const table = {
                                         type: "table",
@@ -416,145 +473,245 @@ async function documentDatabasePages(dbID, dbList, dbRelation, existingDatabaseP
                                     }));
 
                                     table.table.children.push(...tableRows);
-                                    childArray.push(table);
-
-                                    // Compress the descriptions
-                                    Object.values(
-                                        db.properties[prop][typeAccessor]
-                                    ).map((options) => {
-                                        if (Array.isArray(options)) {
-                                            return options.map((option) => {
-                                                if (
-                                                    option.description &&
-                                                    option.description.length >
-                                                        0
-                                                ) {
-                                                    console.log(
-                                                        "Compressing description:"
-                                                    );
-                                                    console.log(
-                                                        option.description
-                                                    );
-                                                    option.description =
-                                                        compress(
-                                                            option.description
-                                                        );
-                                                    console.log(
-                                                        option.description
-                                                    );
-                                                }
-                                                return option;
-                                            });
-                                        }
-                                        return options;
-                                    });
+                                    selectPropTableHolder.push(table);
                                 }
                             }
 
-                            // If the Property page already exists, update it. Include any dual-relation values. Then append block children for select/multi-select/status props.
-
-                            return notion.pages.create({
-                                parent: {
-                                    type: "database_id",
-                                    database_id: dbs.docs.properties,
-                                },
-                                properties: {
-                                    Name: {
-                                        title: [
-                                            {
-                                                text: {
-                                                    content:
-                                                        db.properties[prop]
-                                                            .name,
-                                                },
-                                            },
-                                        ],
-                                    },
-                                    Description: {
-                                        rich_text: [
-                                            {
-                                                text: {
-                                                    content:
-                                                        db.properties[prop]
-                                                            .description,
-                                                },
-                                            },
-                                        ],
-                                    },
-                                    Type: {
-                                        select: {
-                                            name: db.properties[prop].type,
-                                        },
-                                    },
-                                    Database: {
-                                        relation: [
-                                            { id: db.documentation_page.id },
-                                        ],
-                                    },
-                                    "Property ID": {
-                                        rich_text: [
-                                            {
-                                                text: {
-                                                    content:
-                                                        db.properties[prop].id,
-                                                },
-                                            },
-                                        ],
-                                    },
-                                    "Property Name": {
-                                        rich_text: [
-                                            {
-                                                text: {
-                                                    content:
-                                                        db.properties[prop]
-                                                            .name,
-                                                },
-                                            },
-                                        ],
-                                    },
-                                    ...(selectTypes.includes(
-                                        db.properties[prop].type
-                                    ) && {
-                                        "Options Details": {
-                                            rich_text: [
-                                                {
-                                                    text: {
-                                                        content: JSON.stringify(
-                                                            db.properties[prop][
-                                                                typeAccessor
-                                                            ]
-                                                        ),
-                                                    },
-                                                },
-                                            ],
-                                        },
-                                    }),
-                                    ...(db.properties[prop].type ===
-                                        "relation" && {
-                                        "Relation Details": {
-                                            rich_text: [
-                                                {
-                                                    text: {
-                                                        content: JSON.stringify(
-                                                            db.properties[prop]
-                                                                .relation
-                                                        ),
-                                                    },
-                                                },
-                                            ],
-                                        },
-                                    }),
-                                },
-                                children: childArray,
+                            // Compress the Option descriptions
+                            Object.values(
+                                db.properties[prop][typeAccessor]
+                            ).map((options) => {
+                                if (Array.isArray(options)) {
+                                    return options.map((option) => {
+                                        if (
+                                            option.description &&
+                                            option.description.length > 0
+                                        ) {
+                                            console.log(
+                                                "Compressing description:"
+                                            );
+                                            console.log(option.description);
+                                            option.description = compress(
+                                                option.description
+                                            );
+                                            console.log(option.description);
+                                        }
+                                        return option;
+                                    });
+                                }
+                                return options;
                             });
-                        } catch (e) {
+
+                            const propertyPageProperties = {
+                                Name: {
+                                    title: [
+                                        {
+                                            text: {
+                                                content:
+                                                    db.properties[prop].name,
+                                            },
+                                        },
+                                    ],
+                                },
+                                Description: {
+                                    rich_text: [
+                                        {
+                                            text: {
+                                                content:
+                                                    db.properties[prop]
+                                                        .description,
+                                            },
+                                        },
+                                    ],
+                                },
+                                Type: {
+                                    select: {
+                                        name: db.properties[prop].type,
+                                    },
+                                },
+                                Database: {
+                                    relation: [
+                                        { id: db.documentation_page.id },
+                                    ],
+                                },
+                                "Property ID": {
+                                    rich_text: [
+                                        {
+                                            text: {
+                                                content: db.properties[prop].id,
+                                            },
+                                        },
+                                    ],
+                                },
+                                "Property Name": {
+                                    rich_text: [
+                                        {
+                                            text: {
+                                                content:
+                                                    db.properties[prop].name,
+                                            },
+                                        },
+                                    ],
+                                },
+                                ...(selectTypes.includes(
+                                    db.properties[prop].type
+                                ) && {
+                                    "Options Details": {
+                                        rich_text: [
+                                            {
+                                                text: {
+                                                    content: JSON.stringify(
+                                                        db.properties[prop][
+                                                            typeAccessor
+                                                        ]
+                                                    ),
+                                                },
+                                            },
+                                        ],
+                                    },
+                                }),
+                                ...(db.properties[prop].type === "relation" && {
+                                    "Relation Details": {
+                                        rich_text: [
+                                            {
+                                                text: {
+                                                    content: JSON.stringify(
+                                                        db.properties[prop]
+                                                            .relation
+                                                    ),
+                                                },
+                                            },
+                                        ],
+                                    },
+                                }),
+                            };
+
+                            // If the Property page already exists, update it. Include any dual-relation values. Then append block children for select/multi-select/status props.
+                            const existingPropertyPage =
+                                existingPropertyPages.find(
+                                    (page) =>
+                                        page.properties["Property ID"]
+                                            .rich_text[0].text.content ===
+                                        db.properties[prop].id
+                                );
+                            if (existingPropertyPage) {
+                                // Check for relation dual-property
+                                if (
+                                    db.properties[prop].type === "relation" &&
+                                    db.properties[prop].relation.type ===
+                                        "dual_property"
+                                ) {
+                                    console.log(
+                                        `Relation property has a dual property.`
+                                    );
+                                    // Check if we've already created the documentation page for the dual property. If not, we'll likely match it for that property when we get to it (it'll match to this current prop's page).
+                                    const syncedPropertyID =
+                                        db.properties[prop].relation
+                                            ?.dual_property
+                                            ?.synced_property_id ?? undefined;
+                                    
+                                    console.log("Synced Property ID:")
+                                    console.log(syncedPropertyID)
+
+                                    // Try to find this dual property ID
+                                    const syncedPropertyDocPage =
+                                        existingPropertyPages.find(
+                                            (page) =>
+                                                page.properties["Property ID"]
+                                                    .rich_text[0].text
+                                                    .content ===
+                                                syncedPropertyID
+                                        );
+                                        
+                                    console.log(`Synced Property Doc Page:`)
+                                    console.log(syncedPropertyDocPage)
+
+                                    if (syncedPropertyDocPage) {
+                                        console.log(
+                                            `Found Synced property, attaching to ${propertyPageProperties.Name.title[0].text.content}.`
+                                        );
+                                        propertyPageProperties.Related = {
+                                            relation: [
+                                                {
+                                                    id: syncedPropertyDocPage.id,
+                                                },
+                                            ],
+                                        };
+                                    }
+                                }
+
+                                // Only push the Options section into the childArray if the content has changed
+                                if (
+                                    JSON.stringify(
+                                        db.properties[prop][typeAccessor]
+                                    ) !==
+                                    existingPropertyPage.properties[
+                                        "Options Details"
+                                    ].rich_text[0].text.content
+                                ) {
+                                    console.log(
+                                        `Options Details have changed, so we'll append a new Options table to the page content.`
+                                    );
+                                    childArray.push(...selectPropTableHolder);
+                                } else {
+                                    console.log(
+                                        `Options Details have not changed, so we won't append a new Options table to the page content.`
+                                    );
+                                }
+
+                                // Updated and append block children
+                                console.log(
+                                    `Updating existing page for ${db.properties[prop].name}, type ${db.properties[prop].type}.`
+                                );
+                                try {
+                                    const updatedPropertyPage =
+                                        await notion.pages.update({
+                                            page_id: existingPropertyPage.id,
+                                            properties: propertyPageProperties,
+                                        });
+
+                                    console.log(`Updated page:`)
+                                    console.log(updatedPropertyPage)
+
+                                    if (childArray && childArray.length > 0) {
+                                        const appendedChildren =
+                                            await notion.blocks.children.append(
+                                                {
+                                                    block_id:
+                                                        updatedPropertyPage.id,
+                                                    children: childArray,
+                                                }
+                                            );
+                                        updatedPropertyPage.children =
+                                            appendedChildren.results;
+                                    }
+                                    return updatedPropertyPage;
+                                } catch (e) {
+                                    console.error(e);
+                                }
+                            } else {
+                                // Add the Options table to the childArray, if it exists
+                                childArray.push(...selectPropTableHolder);
+
+                                // Create new page
+                                return notion.pages.create({
+                                    parent: {
+                                        type: "database_id",
+                                        database_id: dbs.docs.properties,
+                                    },
+                                    properties: propertyPageProperties,
+                                    children: childArray,
+                                });
+                            }
+                        } catch (error) {
                             if (400 <= error.status && error.status <= 409) {
                                 // Don't retry for errors 400-409
+                                console.error(error)
                                 bail(error);
                                 return;
                             }
-                            console.error(e);
-                            throw error(e);
+                            console.error(error);
+                            throw error(error);
                         }
                     });
 
@@ -601,13 +758,21 @@ const propArray = await getDatabaseProps(databases);
 //console.dir(propArray, {depth: null})
 
 // Fetch existing documentation for this template's Databases
-const databaseDocumentation = await getExistingDocumentation(dbs.docs.databases, [dbs.templates_db.cc], "Templates")
-console.dir(databaseDocumentation, {depth: null})
+const databaseDocumentation = await getExistingDocumentation(
+    dbs.docs.databases,
+    [dbs.templates_db.cc],
+    "Templates"
+);
+console.dir(databaseDocumentation, { depth: null });
 
 // Fetch existing documentation for this template's Properties
-const databasePageIDArray = databaseDocumentation.map((db) => db.id)
-const propertyDocumentation = await getExistingDocumentation(dbs.docs.properties, databasePageIDArray, "Database")
-console.dir(propertyDocumentation, {depth: null})
+const databasePageIDArray = databaseDocumentation.map((db) => db.id);
+const propertyDocumentation = await getExistingDocumentation(
+    dbs.docs.properties,
+    databasePageIDArray,
+    "Database"
+);
+console.dir(propertyDocumentation, { depth: null });
 
 /**
  * For each database, create a page in the Databases documentation db, then create page in the
@@ -631,8 +796,8 @@ logSessionCloser();
  *
  * X Get database descriptions
  * - Update any other RTOs to just use existing RTOs instead of getting only the text value
- * - Modify so that this can update existing pages instead of creating new ones
- * -- Record property ID and database ID in the documentation for source template properties
- * -- Record database ID in the docs for databases
- * - Add "Related" property connections
+ * X Modify so that this can update existing pages instead of creating new ones
+ * XX Record property ID and database ID in the documentation for source template properties
+ * XX Record database ID in the docs for databases
+ * X Add "Related" property connections
  */
