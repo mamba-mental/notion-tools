@@ -1,0 +1,95 @@
+<!-- wp:paragraph -->
+<p>The <strong>Content </strong>database stores all of your Content projects –&nbsp;long-form videos, Shorts, blog posts, podcast episodes, etc. If it's a piece of content that you want to plan and track in Creator's Companion, it goes here.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Content is the primary database in Creator's Companion; it's what enables you to capture content ideas, write outlines and scripts, set publish dates, etc. Most of the other databases connect to Content in some way.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Below you'll find a reference guide for all properties in the Content database. Properties are in alphabetical order.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">Archive</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><strong>Type: </strong>Checkbox</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Typically used for "archiving" old content ideas that you'd like to clear out of the majority of your Ideas views. Was called "Graveyard" in previous versions of this template.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">Edit Stage</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><strong>Type: </strong>Status</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Useful for tracking editing stages for video projects that are set to Editing in the main Status property.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>See the Edit Bay page to learn more. Unlock the Content database to add more options.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><thead><tr><th>Name</th><th>Description</th></tr></thead><tbody><tr><td colspan="2">Group: To-do</td></tr><tr><td><mark style="background-color:#f9e4bc" class="has-inline-color">To Ingest</mark></td><td>The initial stage of the edit, when footage needs to be ingested (offloaded to editing workstation or server). Proxies can optionally be made.</td></tr><tr><td colspan="2">Group: In progress</td></tr><tr><td><mark style="background-color:#d3e5ef" class="has-inline-color">Assembly</mark></td><td>Clips are being trimmed down and marked as usable or thrown out.</td></tr><tr><td>Rough Cut</td><td>The initial cut is done during this stage. For YouTube videos, this will often be the "A-roll Cut" or "Talking Head Cut".</td></tr><tr><td colspan="2">Group: Complete</td></tr><tr><td><mark style="background-color:#dbeddb" class="has-inline-color">Final Edit</mark></td><td></td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">Pay Due Date</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><strong>Type: </strong>Formula</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>If this piece of content is sponsored, this property will return the date at which you should be paid.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>It is calculated based on the Publish Date of the content and the Sponsor's pay schedule setting (e.g. Net30 would pay 30 days after the publish date).</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:code {"language":"javascript","showLineNumbers":true,"wrapLines":true} -->
+<pre class="wp-block-code"><code>ifs(
+	prop("Sponsor").empty(),
+	"".parseDate(),
+	lets(
+		sponsor,
+		prop("Sponsor").first(),
+		eomBuffer,
+		if(
+			sponsor.prop("Pay Structure").test("EOM"),
+			dateBetween(
+				prop("Publish Date").dateAdd(1, "months").dateSubtract(prop("Publish Date").date(), "days"),
+				prop("Publish Date"),
+				"days"
+			),
+			0
+		),
+		netBuffer,
+		ifs(
+			sponsor.prop("Pay Structure").test("60"),
+			2,
+			sponsor.prop("Pay Structure").test("30"),
+			1,
+			0
+		),
+		ifs(
+			sponsor.prop("Pay Structure") == "On Deal Close" or sponsor.prop("Pay Structure").empty(),
+			"".parseDate(),
+			sponsor.prop("Pay Structure") == "On Publish",
+			prop("Publish Date"),
+			prop("Publish Date").dateAdd(eomBuffer, "days").dateAdd(netBuffer, "months")
+		)
+	)
+)</code></pre>
+<!-- /wp:code -->

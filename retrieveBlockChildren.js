@@ -15,9 +15,20 @@ const notion = new Client({
 });
 
 async function retrieveBlockChildren(blockID) {
-    return await notion.blocks.children.list({
+    const response = await notion.blocks.children.list({
         block_id: blockID,
     })
+
+    for (let block of response.results) {
+        const children = []
+        if (block.has_children) {
+            const childBlock = await retrieveBlockChildren(block.id)
+            children.push(childBlock)
+        }
+        block.children = children
+    }
+
+    return response
 }
 
 console.dir(await retrieveBlockChildren("51eedb8900b34a6daf3d3c1b146273dd"))
