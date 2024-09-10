@@ -7,9 +7,11 @@
     "axios": "^1.7.5",
     "collect.js": "^4.36.1",
     "dotenv": "^16.4.5",
+    "franc": "^6.2.0",
     "he": "^1.2.0",
     "html-entities": "^2.5.2",
     "lz-string": "^1.5.0",
+    "notion-helper": "^1.1.0",
     "strip-ansi": "^7.1.0"
   }
 }
