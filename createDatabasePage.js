@@ -93,9 +93,6 @@ const page = createNotion()
     .loop('paragraph', transcript)
     .build()
 
-console.dir(page, { depth: null})
-
-
 const pageResponse = await notion.pages.create(page.content)
 
 for (let chunk of page.additionalBlocks) {
